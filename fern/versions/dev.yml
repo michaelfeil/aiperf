@@ -21,16 +21,22 @@ navigation:
         contents:
           - page: Profile OpenAI-Compatible Text APIs Using AIPerf
             path: ../pages-dev/tutorials/openai-text-endpoints.md
+          - page: Profile the OpenAI Responses API with AIPerf
+            path: ../pages-dev/tutorials/openai-responses.md
           - page: Profile Hugging Face TGI Models with AIPerf
             path: ../pages-dev/tutorials/huggingface-tgi.md
           - page: Profile Vision Language Models with AIPerf
             path: ../pages-dev/tutorials/vision.md
           - page: Profile Audio Language Models with AIPerf
             path: ../pages-dev/tutorials/audio.md
+          - page: Profile ASR Models with AIPerf
+            path: ../pages-dev/tutorials/asr.md
           - page: Profile Embedding Models with AIPerf
             path: ../pages-dev/tutorials/embeddings.md
           - page: Profile Ranking Models with AIPerf
             path: ../pages-dev/tutorials/rankings.md
+          - page: Profile NIM Image Retrieval with AIPerf
+            path: ../pages-dev/tutorials/nim-image-retrieval.md
           - page: SGLang Image Generation
             path: ../pages-dev/tutorials/image-generation.md
           - page: SGLang Video Generation
@@ -48,12 +54,40 @@ navigation:
             path: ../pages-dev/tutorials/custom-prompt-benchmarking.md
           - page: Profile with ShareGPT Dataset
             path: ../pages-dev/tutorials/sharegpt.md
+          - page: Synthetic Dataset Generation
+            path: ../pages-dev/tutorials/synthetic-dataset.md
+          - page: Profile with InstructCoder Dataset
+            path: ../pages-dev/tutorials/instruct-coder.md
+          - page: Profile with AIMO Dataset
+            path: ../pages-dev/tutorials/aimo.md
+          - page: Profile with MMStar Dataset
+            path: ../pages-dev/tutorials/mmstar.md
+          - page: Profile with MMVU Dataset
+            path: ../pages-dev/tutorials/mmvu.md
+          - page: Profile with LLaVA-OneVision Dataset
+            path: ../pages-dev/tutorials/llava-onevision.md
+          - page: Profile with VisionArena Dataset
+            path: ../pages-dev/tutorials/vision-arena.md
+          - page: Profile with Blazedit Dataset
+            path: ../pages-dev/tutorials/blazedit.md
+          - page: Profile with SpecBench Dataset
+            path: ../pages-dev/tutorials/spec-bench.md
+          - page: Profile with SPEED-Bench Dataset
+            path: ../pages-dev/tutorials/speed-bench.md
+          - page: Profile with Bailian Traces
+            path: ../pages-dev/tutorials/bailian-trace.md
+          - page: Profile with BurstGPT Traces
+            path: ../pages-dev/tutorials/burst-gpt-trace.md
+          - page: Replay SageMaker Data Capture Traces
+            path: ../pages-dev/tutorials/sagemaker-data-capture.md
           - page: Multi-Turn Conversations
             path: ../pages-dev/tutorials/multi-turn.md
           - page: Sequence Length Distributions for Advanced Benchmarking
             path: ../pages-dev/tutorials/sequence-distributions.md
           - page: Prefix Data Synthesis Tutorial
             path: ../pages-dev/tutorials/prefix-synthesis.md
+          - page: Agentic Code Dataset Generator
+            path: ../pages-dev/tutorials/agentic-code-generator.md
       - section: Load Patterns & Scheduling
         collapsed: true
         contents:
@@ -82,6 +116,8 @@ navigation:
             path: ../pages-dev/tutorials/goodput.md
           - page: Multi-Run Confidence Reporting
             path: ../pages-dev/tutorials/multi-run-confidence.md
+          - page: Parameter Sweeping
+            path: ../pages-dev/tutorials/parameter-sweeping.md
           - page: Time Slicing for Performance Analysis
             path: ../pages-dev/tutorials/timeslices.md
           - page: HTTP Trace Metrics Guide
@@ -110,6 +146,11 @@ navigation:
         path: ../pages-dev/benchmark-modes/timing-modes-reference.md
       - page: Trace Replay with Mooncake Traces
         path: ../pages-dev/benchmark-modes/trace-replay.md
+  - section: Accuracy
+    collapsed: true
+    contents:
+      - page: Accuracy Benchmarking
+        path: ../pages-dev/accuracy/accuracy-benchmarking.md
   - section: Reference
     collapsed: true
     contents:
@@ -123,6 +164,14 @@ navigation:
         path: ../pages-dev/benchmark-datasets.md
       - page: Pre-Flight Tokenizer Auto Detection
         path: ../pages-dev/reference/tokenizer-auto-detection.md
+      - page: Conversation Context Mode
+        path: ../pages-dev/reference/conversation-context-mode.md
+      - page: List-Metric Aggregation
+        path: ../pages-dev/reference/list-metric-aggregation.md
+      - page: Vendor Usage Field Reference
+        path: ../pages-dev/reference/vendor-usage-fields.md
+      - page: JSON Export Schema
+        path: ../pages-dev/reference/json-export-schema.md
   - section: Server Metrics
     collapsed: true
     contents:
@@ -146,6 +195,8 @@ navigation:
     contents:
       - page: Prefix Synthesis API Reference
         path: ../pages-dev/api/synthesis.md
+      - page: Sweep Aggregates API Reference
+        path: ../pages-dev/api/sweep-aggregates.md
   - section: Architecture & Internals
     collapsed: true
     contents:
@@ -157,3 +208,8 @@ navigation:
         path: ../pages-dev/diagrams/mixins.md
       - page: AIPerf Code Patterns
         path: ../pages-dev/dev/patterns.md
+  - section: Troubleshooting
+    collapsed: true
+    contents:
+      - page: Parameter Sweeping Errors
+        path: ../pages-dev/troubleshooting/parameter-sweeping-errors.md

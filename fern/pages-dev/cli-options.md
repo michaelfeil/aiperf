@@ -20,7 +20,7 @@ Analyze a mooncake trace file for ISL/OSL distributions and cache hit rates.
 
 Run the Profile subcommand.
 
-[Endpoint](#endpoint) • [Input](#input) • [Audio Input](#audio-input) • [Image Input](#image-input) • [Video Input](#video-input) • [Prompt](#prompt) • [Input Sequence Length (ISL)](#input-sequence-length-isl) • [Output Sequence Length (OSL)](#output-sequence-length-osl) • [Prefix Prompt](#prefix-prompt) • [Rankings](#rankings) • [Synthesis](#synthesis) • [Conversation Input](#conversation-input) • [Output](#output) • [Tokenizer](#tokenizer) • [Load Generator](#load-generator) • [Multi-Run Confidence Reporting](#multi-run-confidence-reporting) • [Accuracy](#accuracy) • [Telemetry](#telemetry) • [Server Metrics](#server-metrics) • [ZMQ Communication](#zmq-communication) • [Workers](#workers) • [Service](#service)
+[Endpoint](#endpoint) • [Input](#input) • [Audio Input](#audio-input) • [Image Input](#image-input) • [Video Input](#video-input) • [Prompt](#prompt) • [Input Sequence Length (ISL)](#input-sequence-length-isl) • [Output Sequence Length (OSL)](#output-sequence-length-osl) • [Prefix Prompt](#prefix-prompt) • [Rankings](#rankings) • [Synthesis](#synthesis) • [Conversation Input](#conversation-input) • [Output](#output) • [Tokenizer](#tokenizer) • [Load Generator](#load-generator) • [Parameter Sweep](#parameter-sweep) • [Multi-Run Confidence Reporting](#multi-run-confidence-reporting) • [Accuracy](#accuracy) • [Telemetry](#telemetry) • [Server Metrics](#server-metrics) • [ZMQ Communication](#zmq-communication) • [Workers](#workers) • [Service](#service)
 
 ### [`plot`](#aiperf-plot)
 
@@ -33,6 +33,18 @@ Explore AIPerf plugins: aiperf plugins [category] [type]
 ### [`service`](#aiperf-service)
 
 Run an AIPerf service in a single process.
+
+### [`speed-bench-report`](#aiperf-speed-bench-report)
+
+Assemble per-category SPEED-Bench aiperf results into a matrix report.
+
+### [`synthesize`](#aiperf-synthesize)
+
+Synthesize a dataset workload.
+
+### [`validate`](#aiperf-validate)
+
+Validate a benchmark artifact.
 
 <hr/>
 
@@ -126,7 +138,7 @@ Set a custom API endpoint path (e.g., `/v1/custom`, `/my-api/chat`). By default,
 #### `--endpoint-type` `<str>`
 
 The API endpoint type to benchmark. Determines request/response format and supported features. Common types: `chat` (multi-modal conversations), `embeddings` (vector generation), `completions` (text completion). See enum documentation for all supported endpoint types.
-<br/>_Choices: [`chat`, `cohere_rankings`, `completions`, `chat_embeddings`, `embeddings`, `hf_tei_rankings`, `huggingface_generate`, `image_generation`, `video_generation`, `image_retrieval`, `nim_embeddings`, `nim_rankings`, `solido_rag`, `template`]_
+<br/>_Choices: [`chat`, `cohere_rankings`, `completions`, `responses`, `chat_embeddings`, `embeddings`, `hf_tei_rankings`, `huggingface_generate`, `image_generation`, `video_generation`, `image_retrieval`, `nim_embeddings`, `nim_rankings`, `solido_rag`, `template`]_
 <br/>_Default: `chat`_
 
 #### `--streaming`
@@ -136,9 +148,9 @@ Enable streaming responses. When enabled, the server streams tokens incrementall
 
 #### `-u`, `--url` `<list>`
 
-Base URL(s) of the API server(s) to benchmark. Multiple URLs can be specified for load balancing across multiple instances (e.g., `--url http://server1:8000 --url http://server2:8000`). The endpoint path is automatically appended based on `--endpoint-type` (e.g., `/v1/chat/completions` for `chat`).
+Base URL(s) of the API server(s) to benchmark. Multiple URLs can be specified for load balancing across multiple instances (e.g., `--url http://server1:8000 --url http://server2:8000`). The endpoint path is automatically appended based on `--endpoint-type` (e.g., `/v1/chat/completions` for `chat`). URLs that do not include a scheme (no `://`) have `http://` prepended automatically.
 <br/>_Constraints: min: 1_
-<br/>_Default: `['localhost:8000']`_
+<br/>_Default: `['http://localhost:8000']`_
 
 #### `--url-strategy` `<str>`
 
@@ -154,6 +166,23 @@ Maximum time in seconds to wait for each HTTP request to complete, including con
 #### `--api-key` `<str>`
 
 API authentication key for the endpoint. When provided, automatically included in request headers as `Authorization: Bearer <api_key>`.
+
+#### `--wait-for-model-timeout` `<float>`
+
+Enable a pre-flight readiness probe by setting this to a positive value (seconds). aiperf applies this timeout to each URL/model probe before starting the benchmark, aborting with a non-zero exit if any probe times out. For multiple URLs or models, worst-case wall-clock time can be roughly this timeout multiplied by the number of URL/model probes. The probe strategy is controlled by `--wait-for-model-mode`, which defaults to sending a 1-token inference request. 0 (default) disables the probe. Eliminates the need for external shell-based readiness loops in containers and Kubernetes recipes.
+<br/>_Constraints: ≥ 0.0_
+<br/>_Default: `0.0`_
+
+#### `--wait-for-model-interval` `<float>`
+
+Seconds between readiness probe attempts. Only consulted when `--wait-for-model-timeout` is positive.
+<br/>_Constraints: > 0.0_
+<br/>_Default: `5.0`_
+
+#### `--wait-for-model-mode` `<str>`
+
+Strategy for the readiness probe. 'inference' (default): POST a 1-token inference request to the configured endpoint; this is the strongest signal — it proves the full stack (frontend, scheduler, worker, forward pass) is live. Any HTTP status &lt; 500 counts as ready. 'models': GET `/v1/models` and verify the model id appears in `data[]` (cheaper, no tokens consumed; falls back to a plain GET on the base URL on 404). 'both': run 'models' first, then 'inference'. Only consulted when `--wait-for-model-timeout` is positive.
+<br/>_Default: `inference`_
 
 #### `--transport`, `--transport-type` `<str>`
 
@@ -237,7 +266,7 @@ End offset in milliseconds for fixed schedule replay. Stops issuing requests aft
 #### `--public-dataset` `<str>`
 
 Pre-configured public dataset to download and use for benchmarking (e.g., `sharegpt`). AIPerf automatically downloads and parses these datasets. Mutually exclusive with `--custom-dataset-type`. Run `aiperf plugins public_dataset_loader` to list available datasets. Use `--hf-subset` to override the HuggingFace subset/config for HF-backed datasets.
-<br/>_Choices: [`sharegpt`, `aimo`, `mmstar`, `vision_arena`, `llava_onevision`, `speed_bench_qualitative`, `speed_bench_coding`, `speed_bench_humanities`, `speed_bench_math`, `speed_bench_multilingual`, `speed_bench_qa`, `speed_bench_rag`, `speed_bench_reasoning`, `speed_bench_roleplay`, `speed_bench_stem`, `speed_bench_summarization`, `speed_bench_writing`, `speed_bench_throughput_1k`, `speed_bench_throughput_2k`, `speed_bench_throughput_8k`, `speed_bench_throughput_16k`, `speed_bench_throughput_32k`, `speed_bench_throughput_1k_low_entropy`, `speed_bench_throughput_1k_mixed`, `speed_bench_throughput_1k_high_entropy`, `speed_bench_throughput_2k_low_entropy`, `speed_bench_throughput_2k_mixed`, `speed_bench_throughput_2k_high_entropy`, `speed_bench_throughput_8k_low_entropy`, `speed_bench_throughput_8k_mixed`, `speed_bench_throughput_8k_high_entropy`, `speed_bench_throughput_16k_low_entropy`, `speed_bench_throughput_16k_mixed`, `speed_bench_throughput_16k_high_entropy`, `speed_bench_throughput_32k_low_entropy`, `speed_bench_throughput_32k_mixed`, `speed_bench_throughput_32k_high_entropy`, `aimo_aime`, `aimo_numina_cot`, `aimo_numina_1_5`, `spec_bench`, `instruct_coder`, `blazedit_5k`, `blazedit_10k`]_
+<br/>_Choices: [`sharegpt`, `aimo`, `mmstar`, `mmvu`, `vision_arena`, `llava_onevision`, `speed_bench_qualitative`, `speed_bench_coding`, `speed_bench_humanities`, `speed_bench_math`, `speed_bench_multilingual`, `speed_bench_qa`, `speed_bench_rag`, `speed_bench_reasoning`, `speed_bench_roleplay`, `speed_bench_stem`, `speed_bench_summarization`, `speed_bench_writing`, `speed_bench_throughput_1k`, `speed_bench_throughput_2k`, `speed_bench_throughput_8k`, `speed_bench_throughput_16k`, `speed_bench_throughput_32k`, `speed_bench_throughput_1k_low_entropy`, `speed_bench_throughput_1k_mixed`, `speed_bench_throughput_1k_high_entropy`, `speed_bench_throughput_2k_low_entropy`, `speed_bench_throughput_2k_mixed`, `speed_bench_throughput_2k_high_entropy`, `speed_bench_throughput_8k_low_entropy`, `speed_bench_throughput_8k_mixed`, `speed_bench_throughput_8k_high_entropy`, `speed_bench_throughput_16k_low_entropy`, `speed_bench_throughput_16k_mixed`, `speed_bench_throughput_16k_high_entropy`, `speed_bench_throughput_32k_low_entropy`, `speed_bench_throughput_32k_mixed`, `speed_bench_throughput_32k_high_entropy`, `aimo_aime`, `aimo_numina_cot`, `aimo_numina_1_5`, `spec_bench`, `instruct_coder`, `blazedit_5k`, `blazedit_10k`, `librispeech`, `voxpopuli`, `gigaspeech`, `ami`, `spgispeech`]_
 
 #### `--hf-subset` `<str>`
 
@@ -246,7 +275,7 @@ HuggingFace dataset subset/config name to override the plugin default (e.g. `sha
 #### `--custom-dataset-type` `<str>`
 
 Format specification for custom dataset provided via `--input-file`. Determines parsing logic and expected file structure. Options: `single_turn` (JSONL with single exchanges), `multi_turn` (JSONL with conversation history), `mooncake_trace`/`bailian_trace` (timestamped trace files), `random_pool` (directory of reusable prompts; when using `random_pool`, `--conversation-num` defaults to 100 if not specified; batch sizes > 1 sample each modality independently from a flat pool and do not preserve per-entry associations — use `single_turn` if paired modalities must stay together). Requires `--input-file`. Mutually exclusive with `--public-dataset`.
-<br/>_Choices: [`burst_gpt_trace`, `bailian_trace`, `mooncake_trace`, `multi_turn`, `random_pool`, `single_turn`]_
+<br/>_Choices: [`burst_gpt_trace`, `bailian_trace`, `mooncake_trace`, `sagemaker_data_capture`, `multi_turn`, `random_pool`, `single_turn`]_
 
 #### `--dataset-sampling-strategy` `<str>`
 
@@ -412,11 +441,11 @@ Container format for generated video files. Supports `webm` (VP9, recommended, B
 The video codec to use for encoding. Common options: libvpx-vp9 (CPU, BSD-licensed, default for WebM), libx264 (CPU, GPL-licensed, widely compatible), libx265 (CPU, GPL-licensed, smaller files), h264_nvenc (NVIDIA GPU), hevc_nvenc (NVIDIA GPU, smaller files). Any FFmpeg-supported codec can be used.
 <br/>_Default: `libvpx-vp9`_
 
-#### `--video-audio-sample-rate` `<int>`
+#### `--video-audio-sample-rate` `<float>`
 
-Audio sample rate in Hz for the embedded audio track. Common values: 8000 (telephony), 16000 (speech), 44100 (CD quality), 48000 (professional). Higher sample rates increase audio fidelity and file size.
-<br/>_Constraints: ≥ 8000, ≤ 96000_
-<br/>_Default: `44100`_
+Audio sample rate in kHz for the embedded audio track. Common values: 8 (telephony), 16 (speech), 44.1 (CD quality), 48 (professional). Higher sample rates increase audio fidelity and file size.
+<br/>_Constraints: ≥ 8.0, ≤ 96.0_
+<br/>_Default: `44.1`_
 
 #### `--video-audio-num-channels` `<int>`
 
@@ -666,7 +695,7 @@ Display HTTP trace timing metrics in the console at the end of the benchmark. Sh
 
 #### `--tokenizer` `<str>`
 
-HuggingFace tokenizer identifier or local path for token counting in prompts and responses. Accepts model names (e.g., `meta-llama/Llama-2-7b-hf`) or filesystem paths to tokenizer files. If not specified, defaults to the value of `--model-names`. Essential for accurate token-based metrics (input/output token counts, token throughput).
+HuggingFace tokenizer identifier, local path, or `builtin` for token counting in prompts and responses. Accepts model names (e.g., `meta-llama/Llama-2-7b-hf`), filesystem paths to tokenizer files, or `builtin` for a zero-network-access tokenizer backed by tiktoken (o200k_base encoding). If not specified, defaults to the value of `--model-names`. If `--tokenizer` is not set and the model name looks like an obvious placeholder (e.g. `mock-model`, `test-model`, `fake-model`), AIPerf substitutes `builtin` automatically and emits a warning. Essential for accurate token-based metrics (input/output token counts, token throughput).
 
 #### `--tokenizer-revision` `<str>`
 
@@ -691,10 +720,9 @@ The grace period in seconds to wait for responses after benchmark duration ends.
 <br/>_Constraints: ≥ 0_
 <br/>_Default: `30.0`_
 
-#### `--concurrency` `<int>`
+#### `--concurrency` `<str>`
 
-Number of concurrent requests to maintain. AIPerf issues a new request immediately when one completes, maintaining this level of in-flight requests. Can be combined with `--request-rate` to control the request rate.
-<br/>_Constraints: ≥ 1_
+Number of concurrent requests to maintain OR list of concurrency values for parameter sweep. AIPerf issues a new request immediately when one completes, maintaining this level of in-flight requests. Can be combined with `--request-rate` to control the request rate. When a list is provided (e.g., [10, 20, 30]), AIPerf runs benchmarks sequentially for each value.
 
 #### `--prefill-concurrency` `<int>`
 
@@ -812,6 +840,24 @@ Duration in seconds to ramp request rate from a proportional minimum to target. 
 Duration in seconds to ramp warmup request rate from a proportional minimum to target. Start rate is calculated as target * (update_interval / duration). If not set, uses `--request-rate-ramp-duration` value.
 <br/>_Constraints: > 0_
 
+### Parameter Sweep
+
+#### `--parameter-sweep-mode` `<str>`
+
+Sweep execution mode: 'repeated' (default) runs full sweep N times, 'independent' runs N trials at each sweep value.
+<br/>_Default: `repeated`_
+
+#### `--parameter-sweep-cooldown-seconds` `<float>`
+
+Cooldown duration between sweep values (seconds). Only applies when sweeping parameters (e.g., --concurrency 10,20,30). Allows the system to stabilize between different parameter values. Default is 0 (no cooldown).
+<br/>_Constraints: ≥ 0_
+<br/>_Default: `0.0`_
+
+#### `--parameter-sweep-same-seed`
+
+Use same random seed across all sweep values (default: derive different seeds). Only applies when sweeping parameters (e.g., --concurrency 10,20,30). When False (default), each sweep value uses a different derived seed (base_seed + sweep_index) to avoid artificial correlation between measurements. When True, all sweep values use the same base seed for correlated workload comparisons.
+<br/>_Flag (no value required)_
+
 ### Multi-Run Confidence Reporting
 
 #### `--num-profile-runs` `<int>`
@@ -879,13 +925,12 @@ Accuracy benchmark to run (e.g., mmlu, aime, hellaswag). When set, enables accur
 
 #### `--accuracy-tasks` `<list>`
 
-Specific tasks or subtasks within the benchmark to evaluate (e.g., specific MMLU subjects). If not set, all tasks are included.
+Specific tasks or subtasks within the benchmark to evaluate (e.g., specific MMLU subjects). Accepts comma-separated values (e.g. abstract_algebra,anatomy) or repeated flags. If not set, all tasks are included.
 
 #### `--accuracy-n-shots` `<int>`
 
-Number of few-shot examples to include in the prompt. 0 means zero-shot evaluation. Maximum 8.
-<br/>_Constraints: ≥ 0, ≤ 8_
-<br/>_Default: `0`_
+Number of few-shot examples to include in the prompt. 0 means zero-shot evaluation, None uses the benchmark default (e.g. MMLU=5). Maximum 32.
+<br/>_Constraints: ≥ 0, ≤ 32_
 
 #### `--accuracy-enable-cot`
 
@@ -1122,3 +1167,97 @@ Host to bind the health server to. Falls back to AIPERF_SERVICE_HEALTH_HOST envi
 #### `--health-port` `<int>`
 
 HTTP port for health endpoints (/healthz, /readyz). Required for Kubernetes liveness and readiness probes. Falls back to AIPERF_SERVICE_HEALTH_PORT environment variable.
+
+<hr/>
+
+## `aiperf speed-bench-report`
+
+Assemble per-category SPEED-Bench aiperf results into a matrix report.
+
+Run ``aiperf profile`` once per SPEED-Bench category, then point this command at the output directories to produce a matrix matching the SPEED-Bench paper format.
+
+**Examples:**
+
+```bash
+# Scan a parent directory for per-category run subdirectories
+aiperf speed-bench-report ./artifacts/
+
+# List run directories explicitly
+aiperf speed-bench-report ./artifacts/run_coding/ ./artifacts/run_math/
+
+# Acceptance rate matrix (accepted / draft tokens)
+aiperf speed-bench-report ./artifacts/ --metric accept_rate
+
+# Throughput matrix (output tokens/sec per category)
+aiperf speed-bench-report ./artifacts/ --metric throughput
+```
+
+#### `--paths`, `--empty-paths` `<list>` _(Required)_
+
+Run directories or parent directories containing run subdirectories.
+
+#### `--output` `<str>`
+
+Output CSV file path. Defaults to ./speed_bench_report.csv.
+<br/>_Default: `speed_bench_report.csv`_
+
+#### `--format` `<str>`
+
+Output format - 'csv', 'table', or 'both'. Defaults to 'both'.
+<br/>_Default: `both`_
+
+#### `--metric` `<str>`
+
+Which metric to report - 'accept_length', 'accept_rate', or 'throughput'. Defaults to 'accept_length'.
+<br/>_Default: `accept_length`_
+
+<hr/>
+
+## `aiperf synthesize`
+
+Synthesize a dataset workload.
+
+#### `--target` `<str>` _(Required)_
+
+Dataset workload to synthesize.
+
+#### `--num-sessions` `<int>`
+
+Number of sessions to generate.
+<br/>_Default: `1000`_
+
+#### `--output` `<str>`
+
+Parent directory for the run directory.
+<br/>_Default: `.`_
+
+#### `--config` `<str>`
+
+Path to config/manifest JSON.
+
+#### `--seed` `<int>`
+
+Random seed for reproducibility.
+<br/>_Default: `42`_
+
+#### `--max-isl` `<int>`
+
+Maximum input sequence length.
+
+#### `--max-osl` `<int>`
+
+Maximum output sequence length.
+
+<hr/>
+
+## `aiperf validate`
+
+Validate a benchmark artifact.
+
+#### `--target` `<str>` _(Required)_
+
+Artifact format to validate.
+
+#### `--input` `<str>` _(Required)_
+
+Path to the artifact file.
