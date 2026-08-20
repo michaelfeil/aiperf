@@ -6,21 +6,24 @@ sidebar-title: Custom Dataset Guide
 
 # Custom Dataset Guide
 
-Benchmark LLMs with your own data using single-turn requests, multi-turn conversations, or random sampling.
+Benchmark LLMs with your own data using single-turn requests, multi-turn conversations, random sampling, or production trace replay.
 
 ## Overview
 
-AIPerf supports three custom dataset types for benchmarking with your own data:
+AIPerf supports these custom dataset types for benchmarking with your own data:
 
 | Dataset Type | Best For | Multi-Turn | Timing Control | Random Sampling |
 |-------------|----------|-----------|---------------|-----------------|
 | **Single Turn** | Independent single requests | No | Yes | No |
 | **Multi Turn** | Conversations with context | Yes | Yes (per turn) | No |
 | **Random Pool** | Load testing with variety | No | No | Yes |
+| **Mooncake / Bailian / Baseten Trace** | Production trace replay | Yes | Yes | No |
 
-**All three support:**
+**Single Turn, Multi Turn, and Random Pool support:**
 - Client-side batching
 - Automatic media handling: local files are converted to base64 format, while remote URLs are sent directly to the API
+
+Trace replay requests are text-only, so client-side batching and media handling do not apply. See [Trace Replay](../benchmark-modes/trace-replay.md) and [Baseten Trace Replay](baseten-trace.md).
 
 ---
 
@@ -313,6 +316,34 @@ benchmark:
     requests: 100
 ```
 
+### Persistent System Prompt
+
+To apply a system prompt to every turn of a conversation, author it as a leading turn with `"role": "system"`. AIPerf lifts that turn into the conversation-level system message, so it is prepended to every turn's request rather than dispatched as its own (user-less) request:
+
+{/* aiperf-run-vllm-default-openai-endpoint-server */}
+```bash
+cat > system_prompt.jsonl << 'EOF'
+{"session_id": "chat_1", "turns": [{"role": "system", "text": "You are a terse assistant. Answer in one sentence."}, {"text": "What is machine learning?"}, {"text": "Give me an example."}]}
+EOF
+
+aiperf profile \
+    --model Qwen/Qwen3-0.6B \
+    --endpoint-type chat \
+    --input-file system_prompt.jsonl \
+    --custom-dataset-type multi_turn \
+    --streaming \
+    --url localhost:8000 \
+    --concurrency 2 \
+    --request-count 10
+```
+{/* /aiperf-run-vllm-default-openai-endpoint-server */}
+
+**Behavior:**
+- The system prompt persists across all turns and is not counted as a turn (the example above runs 2 turns, not 3).
+- Only a **leading**, **text-only** system turn is hoisted. A `system` turn that appears mid-conversation, one that carries image/audio/video media, or one that sets dispatch-time fields (`timestamp`, `delay`, `output_length`, `extra`) stays a normal turn.
+- Hoisting only takes effect on endpoints that send a system message (`chat`, `responses`, `messages`, `chat_embeddings`). On other endpoints (e.g. `completions`) the leading system turn is left in place, so it is dispatched as a normal turn rather than being silently dropped.
+- The same form works in the inline `records` config.
+
 ---
 
 ## Random Pool Datasets
@@ -432,6 +463,60 @@ benchmark:
     concurrency: 2
     requests: 50
 ```
+
+---
+
+## Adding a System Prompt
+
+`--system-prompt` and `--system-prompt-file` attach a fixed system message to every
+conversation. Unlike `--shared-system-prompt-length`, which generates synthetic filler of a
+target token length, these take the **exact text** — so prefix-cache hit rates and TTFT
+reflect the system prompt your deployment actually sends.
+
+They work with every dataset kind: synthetic, file-based, and public.
+
+```bash
+# Inline, for short prompts
+aiperf profile -m Qwen/Qwen3-0.6B --url http://localhost:8000 \
+    --input-file ./data.jsonl \
+    --system-prompt "You are a terse assistant."
+
+# From a file, for real production prompts
+aiperf profile -m Qwen/Qwen3-0.6B --url http://localhost:8000 \
+    --input-file ./data.jsonl \
+    --system-prompt-file ./prod_system.txt
+```
+
+Or in YAML:
+
+```yaml
+dataset:
+  type: file
+  path: ./data.jsonl
+  system_prompt_file: ./prod_system.txt
+```
+
+Behavior worth knowing:
+
+- **Tokens are additive.** With `--isl 1000` and a 350-token system prompt, the request
+  carries roughly 1350 tokens: `--isl` continues to size the generated user prompt only.
+- **A dataset's own system message is kept.** If the dataset already authors one, your text
+  is prepended to it, separated by a blank line, and both are sent as a single system
+  message. Repeated system roles are mishandled by many OpenAI-compatible servers.
+- **The file is read once at startup**, so a missing or unreadable path fails immediately
+  rather than mid-benchmark. Paths containing a symlinked component are rejected — note that
+  on macOS this includes anything under `/tmp` or `$TMPDIR`, since `/var` is itself a symlink.
+- **Supported on `chat`, `responses`, `messages`, and `chat_embeddings`.** Endpoints with no
+  system role (`completions`, `embeddings`, the rankings endpoints) reject the option at
+  startup rather than silently dropping it.
+- **Mutually exclusive** with `--shared-system-prompt-length` and with
+  `--num-prefix-prompts`/`--prefix-prompt-length`, all of which fill the same slot. Setting
+  two of them is rejected at startup rather than one taking precedence, so a misconfigured
+  run fails before sending any requests. It does combine with
+  `--user-context-prompt-length` for a two-tier shared/per-session structure.
+
+> **Note:** `--num-prefix-prompts` and `--prefix-prompt-length` apply only to synthetic
+> datasets — they are dropped for file and public datasets. `--system-prompt` is not.
 
 ---
 
